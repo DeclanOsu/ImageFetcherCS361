@@ -3,7 +3,7 @@ ImageFetcher Microservice - CS 361
 Authors: Declan, Mirna
 
 Listens on http://localhost:5100/fetch
-See README.md for the full communication contract.
+See README.md for usage details.
 
 Usage:
     pip install flask requests Pillow waitress

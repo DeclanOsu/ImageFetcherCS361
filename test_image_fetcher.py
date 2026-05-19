@@ -1,10 +1,11 @@
 """
-ImageFetcher Microservice Test Suite
-Tests all three user stories: basic fetch, resize, and caching.
+ImageFetcher Microservice - Test Program
+Declan, Mirna - CS 361
 
 Usage:
     1. Start the microservice: python app.py
     2. Run this file: python test_image_fetcher.py
+    3. Run with --preview to open the test image in your default viewer
 
 Requirements:
     pip install requests Pillow
@@ -19,15 +20,15 @@ import time
 import requests
 
 BASE_URL = "http://localhost:5100/fetch"
-TEST_IMAGE_URL = "https://img.pokemondb.net/sprites/ruby-sapphire/normal/torkoal.png"
-CACHE_IMAGE_URL = "https://img.pokemondb.net/sprites/ruby-sapphire/shiny/torkoal.png"
+TEST_IMAGE_URL = "https://www.gstatic.com/webp/gallery3/1.png"
+CACHE_IMAGE_URL = "https://www.gstatic.com/webp/gallery3/2.png"
 
 NETWORK_TIMEOUT_MS = 5000
 CACHE_TIMEOUT_MS = 100
 
 SESSION = requests.Session()
 
-# --- helpers -----------------------------------------------------------------
+# --- helpers ----------------------------------------------------------------
 
 def section(title):
     print("\n" + "=" * 60)
@@ -65,7 +66,7 @@ def print_response_info(r, elapsed_ms=None):
             print(f"     Body   : {r.text[:200]}")
 
 
-# --- preview ----------------------------------------------------------------
+# --- image preview ----------------------------------------------------------
 
 def preview_image(url):
     """Fetch an image and open it in the default viewer."""
@@ -85,7 +86,7 @@ def preview_image(url):
     os.startfile(tmp.name)
 
 
-# --- save to preview folder ------------------------------------------------
+# --- save results -----------------------------------------------------------
 
 PREVIEW_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "preview")
 
@@ -104,12 +105,12 @@ def save_image(response, filename):
     print(f"     Saved : {path}")
 
 
-# --- Story 1: Basic fetch ----------------------------------------------------
+# --- Test 1: Basic fetch ----------------------------------------------------
 
-def test_story1_basic_fetch():
-    section("Story 1 - Basic image fetch")
+def test_basic_fetch():
+    section("Test 1 - Basic image fetch")
 
-    print("\n  [1a] Valid URL -> 200 + image bytes")
+    print("\n  [1a] Fetch a valid image")
     r, elapsed = get_timed({"image_url": TEST_IMAGE_URL})
     print_response_info(r, elapsed)
     save_image(r, "1a_basic_fetch")
@@ -127,7 +128,7 @@ def test_story1_basic_fetch():
         check(is_image, "Content looks like a valid image binary",
               "Content does not look like an image")
 
-    print("\n  [1b] Missing image_url -> 400")
+    print("\n  [1b] Missing image_url parameter")
     r, _ = get_timed({})
     print_response_info(r)
     check(r.status_code == 400, "Status 400 for missing image_url",
@@ -135,7 +136,7 @@ def test_story1_basic_fetch():
     check("error" in r.json(), "JSON body contains error key",
           "No error key in response")
 
-    print("\n  [1c] Unreachable URL -> 502")
+    print("\n  [1c] Unreachable URL")
     r, _ = get_timed({"image_url": "http://localhost:19999/img.png"})
     print_response_info(r)
     check(r.status_code == 502, "Status 502 for unreachable URL",
@@ -144,12 +145,12 @@ def test_story1_basic_fetch():
           "No error key in response")
 
 
-# --- Story 2: Resize on fetch ------------------------------------------------
+# --- Test 2: Resize on fetch ------------------------------------------------
 
-def test_story2_resize():
-    section("Story 2 - Resize image on fetch")
+def test_resize():
+    section("Test 2 - Resize image on fetch")
 
-    print("\n  [2a] Width + height -> 200 + correctly sized image")
+    print("\n  [2a] Resize to exact dimensions")
     TARGET_W, TARGET_H = 100, 80
     r, elapsed = get_timed({"image_url": TEST_IMAGE_URL,
                              "width": TARGET_W, "height": TARGET_H, "fit": "cover",
@@ -175,25 +176,25 @@ def test_story2_resize():
                   f"Dimensions correct: {w}x{h}",
                   f"Dimensions wrong: expected {TARGET_W}x{TARGET_H}, got {w}x{h}")
 
-    print("\n  [2b] Width only -> 200")
+    print("\n  [2b] Resize by width only")
     r, _ = get_timed({"image_url": TEST_IMAGE_URL, "width": 50})
     save_image(r, "2b_resize_width50_only")
     check(r.status_code == 200, "Status 200 for width-only request",
           f"Expected 200, got {r.status_code}")
 
-    print("\n  [2c] Oversized dimension -> 400")
+    print("\n  [2c] Reject oversized dimensions")
     r, _ = get_timed({"image_url": TEST_IMAGE_URL, "width": 99999})
     print_response_info(r)
     check(r.status_code == 400, "Status 400 for oversized width",
           f"Expected 400, got {r.status_code}")
 
 
-# --- Story 3: Caching --------------------------------------------------------
+# --- Test 3: Caching --------------------------------------------------------
 
-def test_story3_caching():
-    section("Story 3 - Image caching")
+def test_caching():
+    section("Test 3 - Image caching")
 
-    print("\n  [3a] First request - prime the cache (fresh fetch)")
+    print("\n  [3a] First fetch - not yet cached")
     r, elapsed = get_timed({"image_url": CACHE_IMAGE_URL, "bypass_cache": "true"})
     print_response_info(r, elapsed)
     check(r.status_code == 200, "First request succeeded", f"Unexpected {r.status_code}")
@@ -202,7 +203,7 @@ def test_story3_caching():
           f"Expected MISS, got {r.headers.get('X-Cache', '(none)')}")
     first_bytes = r.content
 
-    print("\n  [3b] Second request - should be served from cache")
+    print("\n  [3b] Second fetch - should come from cache")
     r, elapsed = get_timed({"image_url": CACHE_IMAGE_URL})
     print_response_info(r, elapsed)
     save_image(r, "3b_cache_hit")
@@ -218,7 +219,7 @@ def test_story3_caching():
           "Cached bytes identical to original fetch",
           "Cached bytes differ from original")
 
-    print("\n  [3c] bypass_cache=true -> fresh fetch, X-Cache MISS")
+    print("\n  [3c] Force a fresh fetch with bypass_cache")
     r, elapsed = get_timed({"image_url": CACHE_IMAGE_URL, "bypass_cache": "true"})
     print_response_info(r, elapsed)
     save_image(r, "3c_cache_bypass")
@@ -229,10 +230,10 @@ def test_story3_caching():
           f"Expected MISS, got {r.headers.get('X-Cache', '(none)')}")
 
 
-# --- Bonus -------------------------------------------------------------------
+# --- Test 4: Base64 encoding ------------------------------------------------
 
-def test_bonus_base64_usage():
-    section("Bonus - Base64 encoding (as shown in spec)")
+def test_base64_encoding():
+    section("Test 4 - Base64 encoding")
     print("\n  Fetching image and encoding to base64...")
     r, _ = get_timed({"image_url": TEST_IMAGE_URL})
     if r.status_code == 200:
@@ -244,10 +245,10 @@ def test_bonus_base64_usage():
         print(f"     Skipped - fetch returned {r.status_code}")
 
 
-# --- Main --------------------------------------------------------------------
+# --- Main -------------------------------------------------------------------
 
 if __name__ == "__main__":
-    print("\nImageFetcher Microservice - Test Suite")
+    print("\nImageFetcher Microservice - Tests")
     print(f"Target: {BASE_URL}")
     print(f"Image : {TEST_IMAGE_URL}")
 
@@ -262,10 +263,10 @@ if __name__ == "__main__":
         preview_image(TEST_IMAGE_URL)
         raise SystemExit(0)
 
-    test_story1_basic_fetch()
-    test_story2_resize()
-    test_story3_caching()
-    test_bonus_base64_usage()
+    test_basic_fetch()
+    test_resize()
+    test_caching()
+    test_base64_encoding()
 
     print("\n" + "=" * 60)
     print("  All tests complete.")
